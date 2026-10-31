@@ -35,7 +35,10 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Set stable version code\n        run: echo "VERSION_CODE=$((200000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"\n\n      - name: Require release signing secrets
+      - name: Set stable version code
+        run: echo "VERSION_CODE=$((200000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
+      - name: Require release signing secrets
         if: env.HAS_SIGNING_KEY != 'true'
         run: |
           echo "Missing release signing secrets. Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
