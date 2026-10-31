@@ -29,7 +29,13 @@ android {
     }
 
     buildTypes {
-        getByName("debug") {\n            if (!System.getenv("ANDROID_KEYSTORE_PATH").isNullOrBlank()) {\n                signingConfig = signingConfigs.getByName("release")\n            }\n        }\n\n        getByName("release") {
+        getByName("debug") {
+            if (!System.getenv("ANDROID_KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+
+        getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
