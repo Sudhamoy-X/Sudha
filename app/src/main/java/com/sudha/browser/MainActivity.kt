@@ -48,6 +48,42 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.rgb(16,16,20)
         window.navigationBarColor = android.graphics.Color.rgb(16,16,20)
         setContent { MaterialTheme(colorScheme = darkColorScheme(primary = accent, background = bg, surface = surface)) { BrowserScreen() } }
+        checkForAppUpdate()
+    }
+
+    private fun checkForAppUpdate() {
+        val prefs = getSharedPreferences("sudha_update", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong("last_check", 0L) < 12L * 60L * 60L * 1000L) return
+        prefs.edit().putLong("last_check", now).apply()
+        Thread {
+            try {
+                val connection = (java.net.URL("https://api.github.com/repos/Sudhamoy-X/Sudha/releases/latest").openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                    setRequestProperty("User-Agent", "SUDHA-Android")
+                }
+                val release = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                connection.disconnect()
+                val latest = release.optString("tag_name").removePrefix("v").substringBefore("-")
+                val current = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.1.0"
+                fun parts(v: String) = v.split(".").map { it.toIntOrNull() ?: 0 }
+                val a = parts(latest)
+                val b = parts(current)
+                var newer = false
+                for (i in 0 until maxOf(a.size, b.size)) {
+                    val compare = (a.getOrNull(i) ?: 0).compareTo(b.getOrNull(i) ?: 0)
+                    if (compare > 0) { newer = true; break }
+                    if (compare < 0) break
+                }
+                if (newer) runOnUiThread {
+                    startActivity(android.content.Intent(this, UpdateActivity::class.java).putExtra("AUTO_UPDATE", true))
+                }
+            } catch (_: Exception) {
+                // Offline, no public release yet, or transient GitHub failure: retry on a later app launch.
+            }
+        }.start()
     }
 }
 
