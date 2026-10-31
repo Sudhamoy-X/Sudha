@@ -11,7 +11,7 @@ The listing describes these feature areas. This roadmap is a target, not a claim
 - [x] Address/search input
 - [x] Back, forward, reload and home
 - [x] GitHub Actions debug APK workflow
-- [ ] Confirm a successful CI build and install on a real device
+- [x] Confirm a successful CI build and APK artifact upload (31 Oct 2026); real-device install test still pending
 
 ## Phase 1 — Core browsing
 - [ ] Multi-tab model, tab switcher, close/restore tabs
@@ -48,6 +48,16 @@ The listing describes these feature areas. This roadmap is a target, not a claim
 - [ ] Performance and memory profiling
 - [ ] Release signing through user-managed GitHub secrets
 - [ ] Release APK / AAB workflow and versioning
+
+## Reference-video observations (31 Oct 2026)
+
+The supplied Via Browser screen recording is an additional behaviour and information-architecture reference. It visibly demonstrates:
+- A compact bottom toolbar and a multi-action tools/menu sheet (find in page, save, saved pages, translate, view source, full screen, show images, resource controls, user-agent, network log).
+- Settings grouped into General, Customization, Privacy, Advanced, Scripts and About.
+- General settings including sync, user-agent, clear data, ad blocking, site configuration, password manager, night mode, reader mode, toolbar/menu customization, language, homepage, search settings, AI settings, orientation, download location/manager, external video player, clear data on exit, font, gestures, import/export and startup tab restore.
+- Privacy settings including Do Not Track, WebRTC control and a do-not-sell/share-data preference.
+
+These are observed reference targets only. They are not implemented in the current APK. Prioritize a real tab model and app shell before adding the settings catalogue; avoid presenting nonfunctional menu items.
 
 ## Engineering notes
 - Use Android System WebView as the page renderer, matching the approach described in Via's public README.
