@@ -13,11 +13,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -27,6 +29,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -222,10 +226,33 @@ private fun BrowserScreen() {
                     }
                 }
                 web == null -> {
-                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Text("SUDHA", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
-                        Spacer(Modifier.height(24.dp))
-                        OutlinedTextField(address, { address = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(28.dp), placeholder = { Text("Search or enter URL", color = Color.Gray) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { navigate(address) }))
+                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 34.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = R.drawable.sudha_icon),
+                            contentDescription = "SUDHA Browser logo",
+                            modifier = Modifier.size(132.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Spacer(Modifier.height(34.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(58.dp)
+                                .border(1.dp, Color(0xFF38383D), RoundedCornerShape(32.dp))
+                                .padding(horizontal = 22.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            BasicTextField(
+                                value = address,
+                                onValueChange = { address = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 16.sp),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                                keyboardActions = KeyboardActions(onGo = { navigate(address) }),
+                                decorationBox = { innerTextField -> innerTextField() }
+                            )
+                        }
                     }
                 }
                 else -> AndroidView(factory = { web }, modifier = Modifier.weight(1f).fillMaxWidth())
