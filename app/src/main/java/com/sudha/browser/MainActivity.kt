@@ -287,17 +287,19 @@ private fun SettingsScreen(
     ua: String, setUa: (String) -> Unit,
     clear: () -> Unit
 ) {
+    var subsection by remember { mutableStateOf<String?>(null) }
+    val page = subsection ?: section
     Column(Modifier.fillMaxSize().background(bg)) {
         Row(Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
-            Text(section, color = Color.White, fontSize = 18.sp)
+            IconButton(onClick = { if (subsection != null) subsection = null else onBack() }) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
+            Text(page, color = Color.White, fontSize = 18.sp)
         }
         LazyColumn {
-            if (section == "Settings") {
+            if (page == "Settings") {
                 items(listOf("General", "Customization", "Privacy", "Advanced", "Scripts", "About")) { item ->
-                    SettingRow(item, "", { /* Section list is an index of the reference settings. */ })
+                    SettingRow(item, "", { subsection = item })
                 }
-            } else if (section == "General") {
+            } else if (page == "General") {
                 items(listOf("Sync", "User-agent: " + ua, "Clear data", "Ad blocking", "Site configuration", "Password manager", "Night mode", "Reader mode", "Toolbars settings", "Customize menu", "Customize context menu", "Language: System", "Homepage: Default", "Search settings", "AI settings", "Orientation: System", "Download manager", "External video player", "Clear data on exit", "Font", "Gestures", "Import/export bookmarks", "Import data", "Export data", "Restore tabs on startup", "Set as default browser")) { item ->
                     SettingRow(item, "", {
                         when {
@@ -308,29 +310,29 @@ private fun SettingsScreen(
                         }
                     })
                 }
-            } else if (section == "Privacy") {
+            } else if (page == "Privacy") {
                 item { SettingRow("Do not track", if (dnt) "On" else "Off", { setDnt(!dnt) }) }
                 item { SettingRow("Disable WebRTC", if (webrtc) "On" else "Off", { setWebrtc(!webrtc) }) }
                 item { SettingRow("Do not sell or share data", "Privacy preference", {}) }
                 item { SettingRow("Clear browsing data", "", clear) }
-            } else if (section == "Customization") {
+            } else if (page == "Customization") {
                 item { SettingRow("Night mode", if (night) "On" else "Off", { setNight(!night) }) }
                 item { SettingRow("Toolbars settings", "", {}) }
                 item { SettingRow("Customize menu", "", {}) }
                 item { SettingRow("Customize context menu", "", {}) }
                 item { SettingRow("Font", "", {}) }
-            } else if (section == "Advanced") {
+            } else if (page == "Advanced") {
                 item { SettingRow("Desktop mode", if (desktop) "On" else "Off", { setDesktop(!desktop) }) }
                 item { SettingRow("User-agent", ua, { setUa(if (ua == "Default") "Desktop" else "Default") }) }
                 item { SettingRow("Download location", "Downloads", {}) }
                 item { SettingRow("Download manager", "Built-in", {}) }
                 item { SettingRow("Network log", "Not implemented yet", {}) }
-            } else if (section == "User-agent") {
+            } else if (page == "User-agent") {
                 items(listOf("Default", "Mobile", "Desktop")) { item -> SettingRow(item, if (ua == item) "Selected" else "", { setUa(item) }) }
-            } else if (section == "Ad blocking") {
+            } else if (page == "Ad blocking") {
                 item { SettingRow("Enable ad blocking", if (ads) "On" else "Off", { setAds(!ads) }) }
                 item { SettingRow("Filter lists", "Filter engine pending", {}) }
-            } else if (section == "Bookmarks") {
+            } else if (page == "Bookmarks") {
                 item { SettingRow("Saved bookmarks", "Saved locally on this device", {}) }
             } else {
                 item { SettingRow("SUDHA Browser", "Version 0.2.0", {}) }
