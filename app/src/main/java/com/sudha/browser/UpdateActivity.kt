@@ -29,13 +29,13 @@ class UpdateActivity : Activity() {
             setPadding(48, 64, 48, 32)
             setBackgroundColor(android.graphics.Color.rgb(16, 16, 20))
         }
-        val title = TextView(this).apply {
-            text = "SUDHA Updater"
+        root.addView(TextView(this).apply {
+            text = if (BuildConfig.DEBUG) "SUDHA Debug Updater" else "SUDHA Stable Updater"
             textSize = 26f
             setTextColor(android.graphics.Color.WHITE)
-        }
+        })
         status = TextView(this).apply {
-            text = "Check for the latest stable SUDHA release."
+            text = "Check for the latest SUDHA update."
             textSize = 15f
             setTextColor(android.graphics.Color.LTGRAY)
             setPadding(0, 24, 0, 24)
@@ -44,7 +44,6 @@ class UpdateActivity : Activity() {
             text = "Check for updates"
             setOnClickListener { checkForUpdate() }
         }
-        root.addView(title)
         root.addView(status)
         root.addView(checkButton)
         setContentView(root)
@@ -53,44 +52,47 @@ class UpdateActivity : Activity() {
 
     private fun checkForUpdate() {
         checkButton.isEnabled = false
-        status.text = "Checking official SUDHA releases…"
+        status.text = "Checking update channel…"
         executor.execute {
             try {
-                val debugChannel = BuildConfig.DEBUG
-                val releaseEndpoint = if (debugChannel) "https://api.github.com/repos/Sudhamoy-X/Sudha/releases/tags/debug-latest" else "https://api.github.com/repos/Sudhamoy-X/Sudha/releases/latest"
-                val connection = (URL(releaseEndpoint).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 15000
-                    readTimeout = 15000
-                    setRequestProperty("Accept", "application/vnd.github+json")
-                    setRequestProperty("User-Agent", "SUDHA-Android-Updater")
-                }
-                val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-                connection.disconnect()
-                val tag = json.optString("tag_name").removePrefix("v")
-                val remoteVersion = tag.substringBefore("-")
-                val currentVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
-                if (compareVersions(remoteVersion, currentVersion) <= 0) {
-                    runOnUiThread { status.text = "SUDHA is up to date (v$currentVersion)." ; checkButton.isEnabled = true }
-                    return@execute
-                }
+                val debug = BuildConfig.DEBUG
+                val endpoint = if (debug) "https://api.github.com/repos/Sudhamoy-X/Sudha/releases/tags/debug-latest"
+                    else "https://api.github.com/repos/Sudhamoy-X/Sudha/releases/latest"
+                val json = getJson(endpoint)
                 val assets = json.getJSONArray("assets")
+                val apkName = if (debug) "SUDHA-debug.apk" else "SUDHA-release.apk"
+                val checksumName = "$apkName.sha256"
                 var apkUrl: String? = null
                 var checksumUrl: String? = null
+                var versionUrl: String? = null
                 for (i in 0 until assets.length()) {
                     val asset = assets.getJSONObject(i)
                     when (asset.getString("name")) {
-                        "SUDHA-release.apk" -> apkUrl = asset.getString("browser_download_url")
-                        "SUDHA-release.apk.sha256" -> checksumUrl = asset.getString("browser_download_url")
+                        apkName -> apkUrl = asset.getString("browser_download_url")
+                        checksumName -> checksumUrl = asset.getString("browser_download_url")
+                        "version.txt" -> versionUrl = asset.getString("browser_download_url")
                     }
                 }
-                if (apkUrl == null || checksumUrl == null) throw IllegalStateException("Release APK or SHA-256 checksum is missing.")
+                if (apkUrl == null || checksumUrl == null) throw IllegalStateException("APK or checksum asset is missing.")
+                val remoteVersion = if (debug) {
+                    if (versionUrl == null) throw IllegalStateException("Debug version metadata is missing.")
+                    URL(versionUrl).openStream().bufferedReader().use { it.readText() }.trim()
+                } else json.optString("tag_name").removePrefix("v").substringBefore("-")
+                val currentVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
+                if (compareVersions(remoteVersion, currentVersion) <= 0) {
+                    runOnUiThread {
+                        status.text = "SUDHA is up to date (v$currentVersion)."
+                        checkButton.isEnabled = true
+                    }
+                    return@execute
+                }
                 runOnUiThread { status.text = "Version $remoteVersion found. Downloading and verifying…" }
                 val dir = File(filesDir, "updates").apply { mkdirs() }
-                val apk = File(dir, "SUDHA-release.apk")
-                download(apkUrl, apk)
-                val expected = URL(checksumUrl).openStream().bufferedReader().use { it.readText() }.trim().substringBefore(" ").lowercase()
-                val actual = sha256(apk)
-                if (!expected.matches(Regex("[a-f0-9]{64}")) || expected != actual) {
+                val apk = File(dir, apkName)
+                download(apkUrl!!, apk)
+                val expected = URL(checksumUrl!!).openStream().bufferedReader().use { it.readText() }
+                    .trim().substringBefore(" ").lowercase()
+                if (!expected.matches(Regex("[a-f0-9]{64}")) || expected != sha256(apk)) {
                     apk.delete()
                     throw SecurityException("APK checksum verification failed. Installation blocked.")
                 }
@@ -109,6 +111,19 @@ class UpdateActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun getJson(url: String): JSONObject {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15000
+            readTimeout = 15000
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("User-Agent", "SUDHA-Android-Updater")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) throw IllegalStateException("Update server returned HTTP ${connection.responseCode}")
+            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        } finally { connection.disconnect() }
     }
 
     private fun installUpdate() {
@@ -132,8 +147,10 @@ class UpdateActivity : Activity() {
             readTimeout = 30000
             setRequestProperty("User-Agent", "SUDHA-Android-Updater")
         }
-        connection.inputStream.use { input -> target.outputStream().use { output -> input.copyTo(output) } }
-        connection.disconnect()
+        try {
+            if (connection.responseCode !in 200..299) throw IllegalStateException("APK download failed: HTTP ${connection.responseCode}")
+            connection.inputStream.use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+        } finally { connection.disconnect() }
     }
 
     private fun sha256(file: File): String = MessageDigest.getInstance("SHA-256")
