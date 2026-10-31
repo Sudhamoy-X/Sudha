@@ -142,7 +142,10 @@ private fun BrowserScreen() {
             else -> "https://$q"
         }
         address = url
-        views[active]?.loadUrl(url) ?: run { val copy = tabs.toMutableList(); copy[active] = TabData(url); tabs = copy }
+        val copy = tabs.toMutableList()
+        copy[active] = TabData(url, copy[active].title)
+        tabs = copy
+        views[active]?.loadUrl(url)
     }
     fun saveBookmark() {
         val set = prefs.getStringSet("bookmarks", emptySet())?.toMutableSet() ?: mutableSetOf()
@@ -241,7 +244,7 @@ private fun BrowserScreen() {
                         }
                     }
                 }
-                web == null -> {
+                web == null || tabs.getOrNull(active)?.url == HOME -> {
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         androidx.compose.foundation.Image(
                             painter = painterResource(id = R.drawable.sudha_icon),
@@ -293,7 +296,13 @@ private fun BrowserScreen() {
             Row(Modifier.fillMaxWidth().height(48.dp).background(Color(0xFF151519)), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 NavAction(Icons.Default.ArrowBack, "Back", back) { web?.goBack() }
                 NavAction(Icons.Default.ArrowForward, "Forward", forward) { web?.goForward() }
-                NavAction(Icons.Default.Home, "Home", true) { views[active]?.loadUrl(HOME) ?: run { address = "" } }
+                NavAction(Icons.Default.Home, "Home", true) {
+                    address = ""
+                    val copy = tabs.toMutableList()
+                    copy[active] = TabData(HOME, "New tab")
+                    tabs = copy
+                    views[active]?.loadUrl(HOME)
+                }
                 NavAction(Icons.Default.Tab, tabs.size.toString(), true) { tabScreen = true }
                 NavAction(Icons.Default.Menu, "Menu", true) { tools = true }
             }
@@ -347,7 +356,18 @@ private fun BrowserScreen() {
             setAgent(w, desktop, ua)
             w.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
-                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) { progress = 5; if (url != null) address = url }
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    progress = 5
+                    if (url != null) {
+                        address = url
+                        val tabIndex = views.entries.firstOrNull { it.value === view }?.key
+                        if (tabIndex != null && tabIndex in tabs.indices) {
+                            val copy = tabs.toMutableList()
+                            copy[tabIndex] = TabData(url, copy[tabIndex].title)
+                            tabs = copy
+                        }
+                    }
+                }
                 override fun onPageFinished(view: WebView?, url: String?) {
                     progress = 100
                     back = view?.canGoBack() == true
