@@ -110,6 +110,8 @@ private fun BrowserScreen() {
     var dnt by remember { mutableStateOf(prefs.getBoolean("dnt", true)) }
     var webrtc by remember { mutableStateOf(prefs.getBoolean("webrtc", false)) }
     var ua by remember { mutableStateOf(prefs.getString("ua", "Default") ?: "Default") }
+    var historyJson by remember { mutableStateOf(prefs.getString("history", "[]") ?: "[]") }
+    var bookmarkUrls by remember { mutableStateOf(prefs.getStringSet("bookmarks", emptySet())?.toList() ?: emptyList()) }
     val web = views[active]
 
     fun message(s: String) { Toast.makeText(context, s, Toast.LENGTH_SHORT).show() }
@@ -128,7 +130,7 @@ private fun BrowserScreen() {
     fun saveBookmark() {
         val set = prefs.getStringSet("bookmarks", emptySet())?.toMutableSet() ?: mutableSetOf()
         val url = views[active]?.url ?: address
-        if (url.isNotBlank()) { set.add(url); prefs.edit().putStringSet("bookmarks", set).apply(); message("Bookmark saved") }
+        if (url.isNotBlank()) { set.add(url); bookmarkUrls = set.toList(); prefs.edit().putStringSet("bookmarks", set).apply(); message("Bookmark saved") }
     }
     fun newTab() {
         tabs = tabs + TabData()
@@ -158,7 +160,11 @@ private fun BrowserScreen() {
                 dnt = dnt, setDnt = { dnt = it; pref("dnt", it) },
                 webrtc = webrtc, setWebrtc = { webrtc = it; pref("webrtc", it) },
                 ua = ua, setUa = { ua = it; prefs.edit().putString("ua", it).apply(); views.values.forEach { v -> setAgent(v, desktop, it) } },
-                clear = { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush(); context.deleteDatabase("webview.db"); message("Browsing data cleared") }
+                bookmarks = bookmarkUrls, historyJson = historyJson,
+                onOpenSavedUrl = { savedUrl -> section = null; navigate(savedUrl) },
+                onDeleteBookmark = { savedUrl -> bookmarkUrls = bookmarkUrls - savedUrl; prefs.edit().putStringSet("bookmarks", bookmarkUrls.toSet()).apply() },
+                onClearHistory = { historyJson = "[]"; prefs.edit().putString("history", "[]").apply() },
+                clear = { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush(); context.deleteDatabase("webview.db"); historyJson = "[]"; prefs.edit().putString("history", "[]").apply(); message("Browsing data cleared") }
             )
         } else {
             Row(Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -277,7 +283,20 @@ private fun BrowserScreen() {
                     progress = 100
                     back = view?.canGoBack() == true
                     forward = view?.canGoForward() == true
-                    if (url != null) { address = url; val copy = tabs.toMutableList(); if (active < copy.size) { copy[active] = TabData(url, view?.title ?: url); tabs = copy } }
+                    if (url != null) {
+                        address = url
+                        val copy = tabs.toMutableList()
+                        if (active < copy.size) { copy[active] = TabData(url, view?.title ?: url); tabs = copy }
+                        val title = view?.title?.takeIf { it.isNotBlank() } ?: url
+                        val current = org.json.JSONArray(historyJson)
+                        val updated = org.json.JSONArray()
+                        for (i in 0 until current.length()) { val item = current.optJSONObject(i) ?: continue; if (item.optString("url") != url) updated.put(item) }
+                        updated.put(org.json.JSONObject().put("url", url).put("title", title).put("visitedAt", System.currentTimeMillis()))
+                        val bounded = org.json.JSONArray()
+                        for (i in maxOf(0, updated.length() - 500) until updated.length()) bounded.put(updated.get(i))
+                        historyJson = bounded.toString()
+                        prefs.edit().putString("history", historyJson).apply()
+                    }
                 }
             }
             w.webChromeClient = object : WebChromeClient() {
@@ -322,7 +341,9 @@ private fun SettingsScreen(
     dnt: Boolean, setDnt: (Boolean) -> Unit,
     webrtc: Boolean, setWebrtc: (Boolean) -> Unit,
     ua: String, setUa: (String) -> Unit,
-    clear: () -> Unit
+    bookmarks: List<String>, historyJson: String,
+    onOpenSavedUrl: (String) -> Unit, onDeleteBookmark: (String) -> Unit,
+    onClearHistory: () -> Unit, clear: () -> Unit
 ) {
     var subsection by remember { mutableStateOf<String?>(null) }
     val page = subsection ?: section
@@ -333,7 +354,7 @@ private fun SettingsScreen(
         }
         LazyColumn {
             if (page == "Settings") {
-                items(listOf("General", "Customization", "Privacy", "Advanced", "Scripts", "About")) { item ->
+                items(listOf("General", "Customization", "Privacy", "Advanced", "Scripts", "About", "Bookmarks", "History")) { item ->
                     SettingRow(item, "", { subsection = item })
                 }
             } else if (page == "General") {
@@ -370,7 +391,30 @@ private fun SettingsScreen(
                 item { SettingRow("Enable ad blocking", if (ads) "On" else "Off", { setAds(!ads) }) }
                 item { SettingRow("Filter lists", "Filter engine pending", {}) }
             } else if (page == "Bookmarks") {
-                item { SettingRow("Saved bookmarks", "Saved locally on this device", {}) }
+                if (bookmarks.isEmpty()) item { SettingRow("No bookmarks yet", "Use Save from the browser toolbar", {}) }
+                else items(bookmarks.sorted()) { url ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f).clickable { onOpenSavedUrl(url) }.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                            Text(url.substringAfter("://").take(70), color = Color.White, fontSize = 14.sp, maxLines = 1)
+                            Text(url, color = Color.Gray, fontSize = 11.sp, maxLines = 1)
+                        }
+                        IconButton(onClick = { onDeleteBookmark(url) }) { Icon(Icons.Default.Delete, "Delete bookmark", tint = Color.Gray) }
+                    }
+                    HorizontalDivider(color = Color(0xFF29292F), thickness = 0.5.dp)
+                }
+            } else if (page == "History") {
+                val history = org.json.JSONArray(historyJson)
+                item { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Recent pages", color = Color.Gray, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onClearHistory) { Text("Clear history") }
+                } }
+                if (history.length() == 0) item { SettingRow("No browsing history", "Pages you visit will appear here", {}) }
+                else items((0 until history.length()).toList().reversed()) { index ->
+                    val entry = history.optJSONObject(index)
+                    val url = entry?.optString("url").orEmpty()
+                    val title = entry?.optString("title")?.takeIf { it.isNotBlank() } ?: url
+                    SettingRow(title, url, { onOpenSavedUrl(url) })
+                }
             } else {
                 item { SettingRow("SUDHA Browser", "Version 0.2.0", {}) }
             }
