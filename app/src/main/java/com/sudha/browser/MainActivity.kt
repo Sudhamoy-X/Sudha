@@ -109,8 +109,8 @@ class MainActivity : ComponentActivity() {
 private fun BrowserScreen() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("sudha", Context.MODE_PRIVATE) }
-    var tabs by remember { mutableStateOf(listOf(TabData())) }
-    var active by remember { mutableIntStateOf(0) }
+    var tabs by remember { mutableStateOf(restoreTabs(prefs)) }
+    var active by remember { mutableIntStateOf(prefs.getInt("active_tab", 0).coerceIn(0, restoreTabs(prefs).lastIndex)) }
     val views = remember { mutableStateMapOf<Int, WebView>() }
     var address by remember { mutableStateOf("") }
     var progress by remember { mutableIntStateOf(0) }
@@ -150,10 +150,26 @@ private fun BrowserScreen() {
         if (url.isNotBlank()) { set.add(url); bookmarkUrls = set.toList(); prefs.edit().putStringSet("bookmarks", set).apply(); message("Bookmark saved") }
     }
     fun newTab() {
+        if (tabs.size >= 30) { message("Maximum 30 tabs"); return }
         tabs = tabs + TabData()
         active = tabs.lastIndex
         address = ""
+        back = false
+        forward = false
         tabScreen = false
+    }
+
+    LaunchedEffect(tabs, active) {
+        val json = org.json.JSONArray()
+        tabs.forEach { tab -> json.put(org.json.JSONObject().put("url", tab.url).put("title", tab.title)) }
+        prefs.edit().putString("open_tabs", json.toString()).putInt("active_tab", active.coerceIn(0, tabs.lastIndex)).apply()
+    }
+
+    LaunchedEffect(active) {
+        val current = views[active]
+        address = current?.url?.takeIf { it != HOME }.orEmpty()
+        back = current?.canGoBack() == true
+        forward = current?.canGoForward() == true
     }
 
     BackHandler(section != null || tools || tabScreen || findBar || (web?.canGoBack() == true)) {
