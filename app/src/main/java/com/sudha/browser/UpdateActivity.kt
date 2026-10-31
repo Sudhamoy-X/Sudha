@@ -48,6 +48,7 @@ class UpdateActivity : Activity() {
         root.addView(status)
         root.addView(checkButton)
         setContentView(root)
+        if (intent.getBooleanExtra("AUTO_UPDATE", false)) checkForUpdate()
     }
 
     private fun checkForUpdate() {
@@ -97,6 +98,7 @@ class UpdateActivity : Activity() {
                     checkButton.text = "Install update"
                     checkButton.isEnabled = true
                     checkButton.setOnClickListener { installUpdate() }
+                    if (intent.getBooleanExtra("AUTO_UPDATE", false) && packageManager.canRequestPackageInstalls()) installUpdate()
                 }
             } catch (e: Exception) {
                 runOnUiThread {
