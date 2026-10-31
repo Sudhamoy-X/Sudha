@@ -42,6 +42,19 @@ private val accent = Color(0xFF8798FF)
 
 data class TabData(val url: String = HOME, val title: String = "New tab")
 
+private fun restoreTabs(prefs: android.content.SharedPreferences): List<TabData> {
+    return try {
+        val saved = org.json.JSONArray(prefs.getString("open_tabs", "[]") ?: "[]")
+        val restored = (0 until saved.length()).mapNotNull { index ->
+            val item = saved.optJSONObject(index) ?: return@mapNotNull null
+            TabData(item.optString("url", HOME).ifBlank { HOME }, item.optString("title", "New tab"))
+        }
+        restored.ifEmpty { listOf(TabData()) }.take(30)
+    } catch (_: Exception) {
+        listOf(TabData())
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -188,8 +201,21 @@ private fun BrowserScreen() {
                                 }
                                 IconButton(onClick = {
                                     views.remove(i)?.destroy()
-                                    tabs = tabs.filterIndexed { index, _ -> index != i }.ifEmpty { listOf(TabData()) }
-                                    active = active.coerceAtMost(tabs.lastIndex)
+                                    val remaining = tabs.filterIndexed { index, _ -> index != i }.ifEmpty { listOf(TabData()) }
+                                    val reindexed = views.toMap()
+                                    views.clear()
+                                    reindexed.forEach { (oldIndex, view) ->
+                                        if (oldIndex > i) views[oldIndex - 1] = view
+                                        else if (oldIndex < i) views[oldIndex] = view
+                                    }
+                                    tabs = remaining
+                                    active = when {
+                                        remaining.size == 1 && remaining[0].url == HOME -> 0
+                                        active > i -> active - 1
+                                        active == i -> (i - 1).coerceAtLeast(0).coerceAtMost(remaining.lastIndex)
+                                        else -> active.coerceAtMost(remaining.lastIndex)
+                                    }
+                                    address = remaining[active].url.takeIf { it != HOME }.orEmpty()
                                 }) { Icon(Icons.Default.Close, null, tint = Color.Gray) }
                             }
                         }
