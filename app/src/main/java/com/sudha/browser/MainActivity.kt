@@ -197,7 +197,7 @@ private fun BrowserScreen() {
                 Column {
                     val entries = listOf(
                         "Find in page" to { findBar = true },
-                        "Save page" to { web?.saveWebArchive(context.getExternalFilesDir(null)?.absolutePath + "/saved-page.mht", false); message("Save page requested") },
+                        "Save page" to { web?.saveWebArchive(context.getExternalFilesDir(null)?.absolutePath + "/saved-page.mht", false, null); message("Save page requested") },
                         "Saved pages" to { section = "Bookmarks" },
                         "Translate" to { web?.url?.let { navigate("https://translate.google.com/translate?u=" + it) } },
                         "View source" to { web?.url?.let { navigate("view-source:" + it) } },
