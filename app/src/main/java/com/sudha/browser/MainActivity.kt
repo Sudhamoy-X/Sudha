@@ -226,20 +226,20 @@ private fun BrowserScreen() {
                     }
                 }
                 web == null -> {
-                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 34.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         androidx.compose.foundation.Image(
                             painter = painterResource(id = R.drawable.sudha_icon),
                             contentDescription = "SUDHA Browser logo",
-                            modifier = Modifier.size(132.dp),
+                            modifier = Modifier.size(76.dp),
                             contentScale = ContentScale.Fit
                         )
-                        Spacer(Modifier.height(34.dp))
+                        Spacer(Modifier.height(28.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(58.dp)
+                                .height(46.dp)
                                 .border(1.dp, Color(0xFF38383D), RoundedCornerShape(32.dp))
-                                .padding(horizontal = 22.dp),
+                                .padding(horizontal = 18.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             BasicTextField(
@@ -247,7 +247,7 @@ private fun BrowserScreen() {
                                 onValueChange = { address = it },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
-                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 16.sp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 15.sp),
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                                 keyboardActions = KeyboardActions(onGo = { navigate(address) }),
                                 decorationBox = { innerTextField -> innerTextField() }
