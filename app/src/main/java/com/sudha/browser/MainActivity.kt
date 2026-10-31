@@ -206,6 +206,7 @@ private fun BrowserScreen() {
                         "Resource filter" to { section = "Ad blocking" },
                         "User-agent" to { section = "User-agent" },
                         "Network log" to { section = "Advanced" },
+                        "Check for updates" to { context.startActivity(android.content.Intent(context, UpdateActivity::class.java)) },
                         "Settings" to { section = "Settings" }
                     )
                     entries.chunked(2).forEach { row ->
