@@ -38,7 +38,12 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Set development version\n        run: |\n          echo "VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"\n          echo "VERSION_NAME=0.1.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"\n\n      - name: Require permanent signing key
+      - name: Set development version
+        run: |
+          echo "VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=0.1.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+
+      - name: Require permanent signing key
         if: env.HAS_SIGNING_KEY != 'true'
         run: |
           echo "Missing permanent signing secrets. Debug auto-update requires the same keystore as stable releases."
