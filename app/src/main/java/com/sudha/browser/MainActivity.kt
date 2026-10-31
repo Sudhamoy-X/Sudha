@@ -287,14 +287,6 @@ private fun BrowserScreen() {
                     IconButton(onClick = { web?.clearMatches(); findBar = false }) { Icon(Icons.Default.Close, null) }
                 }
             }
-            Row(Modifier.fillMaxWidth().height(58.dp).background(surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                Action(Icons.Default.Search, "Find") { findBar = true }
-                Action(Icons.Default.BookmarkAdd, "Save") { saveBookmark() }
-                Action(Icons.Default.Layers, "Saved") { section = "Bookmarks" }
-                Action(Icons.Default.Translate, "Translate") { web?.url?.let { navigate("https://translate.google.com/translate?u=" + it) } }
-                Action(Icons.Default.Code, "Source") { web?.url?.let { navigate("view-source:" + it) } }
-                Action(Icons.Default.MoreHoriz, "Tools") { tools = true }
-            }
             Row(Modifier.fillMaxWidth().height(48.dp).background(Color(0xFF151519)), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 NavAction(Icons.Default.ArrowBack, "Back", back) { web?.goBack() }
                 NavAction(Icons.Default.ArrowForward, "Forward", forward) { web?.goForward() }
