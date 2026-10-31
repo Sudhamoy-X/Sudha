@@ -354,8 +354,12 @@ private fun BrowserScreen() {
                     forward = view?.canGoForward() == true
                     if (url != null) {
                         address = url
-                        val copy = tabs.toMutableList()
-                        if (active < copy.size) { copy[active] = TabData(url, view?.title ?: url); tabs = copy }
+                        val tabIndex = views.entries.firstOrNull { it.value === view }?.key
+                        if (tabIndex != null && tabIndex in tabs.indices) {
+                            val copy = tabs.toMutableList()
+                            copy[tabIndex] = TabData(url, view?.title ?: url)
+                            tabs = copy
+                        }
                         val title = view?.title?.takeIf { it.isNotBlank() } ?: url
                         val current = org.json.JSONArray(historyJson)
                         val updated = org.json.JSONArray()
