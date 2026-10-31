@@ -29,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
@@ -205,10 +206,17 @@ private fun BrowserScreen() {
                 clear = { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush(); context.deleteDatabase("webview.db"); historyJson = "[]"; prefs.edit().putString("history", "[]").apply(); message("Browsing data cleared") }
             )
         } else {
-            Row(Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Search, null, tint = Color.LightGray, modifier = Modifier.size(18.dp))
-                Text("  Homepage", color = Color.LightGray, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                IconButton(onClick = { tabScreen = true }) { Icon(Icons.Default.Tab, null, tint = Color.LightGray) }
+            if (tabs.getOrNull(active)?.url == HOME && web == null && !tabScreen) {
+                Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { section = "Settings" }) { Icon(Icons.Default.Settings, null, tint = Color.White) }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Search, null, tint = Color.LightGray, modifier = Modifier.size(18.dp))
+                    Text("  Homepage", color = Color.LightGray, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { tabScreen = true }) { Icon(Icons.Default.Tab, null, tint = Color.LightGray) }
+                }
             }
             when {
                 tabScreen -> {
@@ -247,33 +255,67 @@ private fun BrowserScreen() {
                     }
                 }
                 web == null || tabs.getOrNull(active)?.url == HOME -> {
-                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Column(
+                        Modifier.weight(1f).fillMaxWidth()
+                            .background(Brush.verticalGradient(listOf(Color(0xFF5D8FC8), Color(0xFFDCEBFA), Color(0xFF9DBFE5))))
+                            .padding(horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(Modifier.height(92.dp))
                         androidx.compose.foundation.Image(
                             painter = painterResource(id = R.drawable.sudha_icon),
                             contentDescription = "SUDHA Browser logo",
-                            modifier = Modifier.size(76.dp),
+                            modifier = Modifier.size(112.dp),
                             contentScale = ContentScale.Fit
                         )
-                        Spacer(Modifier.height(28.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                                .border(1.dp, Color(0xFF38383D), RoundedCornerShape(32.dp))
+                        Text("SUDHA", color = Color(0xFF101820), fontSize = 31.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
+                        Text("B R O W S E R", color = Color(0xFF182B40), fontSize = 12.sp, letterSpacing = 3.sp)
+                        Spacer(Modifier.height(58.dp))
+                        Row(
+                            Modifier.fillMaxWidth().height(58.dp)
+                                .background(Color(0x99FFFFFF), RoundedCornerShape(32.dp))
+                                .border(1.dp, Color(0x99FFFFFF), RoundedCornerShape(32.dp))
                                 .padding(horizontal = 18.dp),
-                            contentAlignment = Alignment.CenterStart
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            BasicTextField(
-                                value = address,
-                                onValueChange = { address = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 15.sp),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                                keyboardActions = KeyboardActions(onGo = { navigate(address) }),
-                                decorationBox = { innerTextField -> innerTextField() }
-                            )
+                            Icon(Icons.Default.Search, null, tint = Color(0xFF263B50))
+                            Spacer(Modifier.width(12.dp))
+                            Box(Modifier.weight(1f)) {
+                                if (address.isBlank()) Text("Search or type URL", color = Color(0xFF52677C), fontSize = 16.sp)
+                                BasicTextField(
+                                    value = address,
+                                    onValueChange = { address = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF172A3D), fontSize = 16.sp),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                                    keyboardActions = KeyboardActions(onGo = { navigate(address) })
+                                )
+                            }
                         }
+                        Spacer(Modifier.height(56.dp))
+                        val shortcuts = listOf(
+                            Triple("G", "Google", "https://www.google.com"),
+                            Triple("▶", "YouTube", "https://www.youtube.com"),
+                            Triple("f", "Facebook", "https://www.facebook.com"),
+                            Triple("◎", "Instagram", "https://www.instagram.com"),
+                            Triple("X", "X", "https://x.com")
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            shortcuts.forEach { item ->
+                                Column(
+                                    Modifier.weight(1f).clickable { navigate(item.third) },
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Box(Modifier.size(48.dp).background(Color(0xEFFFFFFF), RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
+                                        Text(item.first, color = Color(0xFF172A3D), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(item.second, color = Color(0xFF172A3D), fontSize = 11.sp, maxLines = 1)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
                     }
                 }
                 else -> AndroidView(factory = { web }, modifier = Modifier.weight(1f).fillMaxWidth())
@@ -287,18 +329,22 @@ private fun BrowserScreen() {
                     IconButton(onClick = { web?.clearMatches(); findBar = false }) { Icon(Icons.Default.Close, null) }
                 }
             }
-            Row(Modifier.fillMaxWidth().height(48.dp).background(Color(0xFF151519)), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                NavAction(Icons.Default.ArrowBack, "Back", back) { web?.goBack() }
-                NavAction(Icons.Default.ArrowForward, "Forward", forward) { web?.goForward() }
-                NavAction(Icons.Default.Home, "Home", true) {
+            Row(
+                Modifier.fillMaxWidth().height(64.dp).background(Color(0xFF08090D)),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { web?.goBack() }, enabled = back) { Icon(Icons.Default.ArrowBack, null, tint = if (back) Color(0xFFE6EAF0) else Color(0xFF747982), modifier = Modifier.size(27.dp)) }
+                IconButton(onClick = { web?.goForward() }, enabled = forward) { Icon(Icons.Default.ArrowForward, null, tint = if (forward) Color(0xFFE6EAF0) else Color(0xFF747982), modifier = Modifier.size(27.dp)) }
+                IconButton(onClick = {
                     address = ""
                     val copy = tabs.toMutableList()
                     copy[active] = TabData(HOME, "New tab")
                     tabs = copy
                     views[active]?.loadUrl(HOME)
-                }
-                NavAction(Icons.Default.Tab, tabs.size.toString(), true) { tabScreen = true }
-                NavAction(Icons.Default.Menu, "Menu", true) { tools = true }
+                }) { Icon(Icons.Default.Home, null, tint = Color.White, modifier = Modifier.size(28.dp)) }
+                IconButton(onClick = { tabScreen = true }) { Icon(Icons.Default.Tab, null, tint = Color.White, modifier = Modifier.size(27.dp)) }
+                IconButton(onClick = { tools = true }) { Icon(Icons.Default.Menu, null, tint = Color.White, modifier = Modifier.size(28.dp)) }
             }
         }
     }
