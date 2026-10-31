@@ -56,7 +56,7 @@ class UpdateActivity : Activity() {
         status.text = "Checking official SUDHA releases…"
         executor.execute {
             try {
-                val connection = (URL("https://api.github.com/repos/Sudhamoy-X/Sudha/releases/latest").openConnection() as HttpURLConnection).apply {
+                val debugChannel = BuildConfig.DEBUG\n                val releaseEndpoint = if (debugChannel) "https://api.github.com/repos/Sudhamoy-X/Sudha/releases/tags/debug-latest" else "https://api.github.com/repos/Sudhamoy-X/Sudha/releases/latest"\n                val connection = (URL(releaseEndpoint).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15000
                     readTimeout = 15000
                     setRequestProperty("Accept", "application/vnd.github+json")
