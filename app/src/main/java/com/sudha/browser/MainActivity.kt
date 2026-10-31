@@ -1,262 +1,356 @@
 package com.sudha.browser
 
 import android.annotation.SuppressLint
+import android.app.DownloadManager
+import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Bundle
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.os.Environment
+import android.webkit.*
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Tab
-import androidx.compose.material.icons.filled.TravelExplore
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import java.net.URLEncoder
 
-private const val HOME_URL = "https://www.google.com"
+private const val HOME = "https://www.google.com"
+private val bg = Color(0xFF101014)
+private val surface = Color(0xFF1D1D22)
+private val accent = Color(0xFF8798FF)
+
+data class TabData(val url: String = HOME, val title: String = "New tab")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme {
-                SudhaBrowser()
-            }
-        }
+        window.statusBarColor = android.graphics.Color.rgb(16,16,20)
+        window.navigationBarColor = android.graphics.Color.rgb(16,16,20)
+        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = accent, background = bg, surface = surface)) { BrowserScreen() } }
     }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun SudhaBrowser() {
+private fun BrowserScreen() {
     val context = LocalContext.current
-    var address by remember { mutableStateOf(HOME_URL) }
-    var browserView by remember { mutableStateOf<WebView?>(null) }
-    var canGoBack by remember { mutableStateOf(false) }
-    var canGoForward by remember { mutableStateOf(false) }
-    var loadingProgress by remember { mutableIntStateOf(0) }
-    var pageTitle by remember { mutableStateOf("SUDHA") }
+    val prefs = remember { context.getSharedPreferences("sudha", Context.MODE_PRIVATE) }
+    var tabs by remember { mutableStateOf(listOf(TabData())) }
+    var active by remember { mutableIntStateOf(0) }
+    val views = remember { mutableStateMapOf<Int, WebView>() }
+    var address by remember { mutableStateOf("") }
+    var progress by remember { mutableIntStateOf(0) }
+    var back by remember { mutableStateOf(false) }
+    var forward by remember { mutableStateOf(false) }
+    var tools by remember { mutableStateOf(false) }
+    var tabScreen by remember { mutableStateOf(false) }
+    var section by remember { mutableStateOf<String?>(null) }
+    var findBar by remember { mutableStateOf(false) }
+    var findText by remember { mutableStateOf("") }
+    var night by remember { mutableStateOf(prefs.getBoolean("night", false)) }
+    var desktop by remember { mutableStateOf(prefs.getBoolean("desktop", false)) }
+    var blockAds by remember { mutableStateOf(prefs.getBoolean("ads", true)) }
+    var dnt by remember { mutableStateOf(prefs.getBoolean("dnt", true)) }
+    var webrtc by remember { mutableStateOf(prefs.getBoolean("webrtc", false)) }
+    var ua by remember { mutableStateOf(prefs.getString("ua", "Default") ?: "Default") }
+    val web = views[active]
 
-    fun navigate(rawInput: String) {
-        val input = rawInput.trim()
-        if (input.isEmpty()) return
-
-        val target = when {
-            input.startsWith("https://", ignoreCase = true) ||
-                input.startsWith("http://", ignoreCase = true) -> input
-            input.contains(" ") || !input.contains(".") ->
-                "https://www.google.com/search?q=" +
-                    java.net.URLEncoder.encode(input, Charsets.UTF_8.name())
-            else -> "https://$input"
+    fun message(s: String) { Toast.makeText(context, s, Toast.LENGTH_SHORT).show() }
+    fun pref(k: String, v: Boolean) { prefs.edit().putBoolean(k, v).apply() }
+    fun navigate(raw: String) {
+        val q = raw.trim()
+        if (q.isEmpty()) return
+        val url = when {
+            q.startsWith("http://") || q.startsWith("https://") -> q
+            q.contains(" ") || !q.contains(".") -> "https://www.google.com/search?q=" + URLEncoder.encode(q, "UTF-8")
+            else -> "https://$q"
         }
-
-        address = target
-        browserView?.loadUrl(target)
+        address = url
+        views[active]?.loadUrl(url) ?: run { val copy = tabs.toMutableList(); copy[active] = TabData(url); tabs = copy }
+    }
+    fun saveBookmark() {
+        val set = prefs.getStringSet("bookmarks", emptySet())?.toMutableSet() ?: mutableSetOf()
+        val url = views[active]?.url ?: address
+        if (url.isNotBlank()) { set.add(url); prefs.edit().putStringSet("bookmarks", set).apply(); message("Bookmark saved") }
+    }
+    fun newTab() {
+        tabs = tabs + TabData()
+        active = tabs.lastIndex
+        address = ""
+        tabScreen = false
     }
 
-    BackHandler(enabled = canGoBack) {
-        browserView?.goBack()
+    BackHandler(section != null || tools || tabScreen || findBar || (web?.canGoBack() == true)) {
+        when {
+            section != null -> section = null
+            tools -> tools = false
+            tabScreen -> tabScreen = false
+            findBar -> { web?.clearMatches(); findBar = false }
+            else -> views[active]?.goBack()
+        }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF6F8F7))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = CircleShape,
-                color = Color(0xFF102A24)
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_sudha),
-                    contentDescription = "SUDHA logo",
-                    tint = Color.Unspecified,
-                    modifier = Modifier.padding(7.dp)
-                )
-            }
-
-            OutlinedTextField(
-                value = address,
-                onValueChange = { address = it },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                shape = RoundedCornerShape(18.dp),
-                placeholder = { Text("Search or enter address") },
-                textStyle = MaterialTheme.typography.bodyMedium,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { navigate(address) }),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedIndicatorColor = Color(0xFF176B55),
-                    unfocusedIndicatorColor = Color(0xFFE0E7E3)
-                )
+    Column(Modifier.fillMaxSize().background(bg)) {
+        if (section != null) {
+            SettingsScreen(
+                section = section!!,
+                onBack = { section = null },
+                night = night, setNight = { night = it; pref("night", it); views.values.forEach { v -> setNight(v, it) } },
+                ads = blockAds, setAds = { blockAds = it; pref("ads", it) },
+                desktop = desktop, setDesktop = { desktop = it; pref("desktop", it); views.values.forEach { v -> setAgent(v, it, ua) } },
+                dnt = dnt, setDnt = { dnt = it; pref("dnt", it) },
+                webrtc = webrtc, setWebrtc = { webrtc = it; pref("webrtc", it) },
+                ua = ua, setUa = { ua = it; prefs.edit().putString("ua", it).apply(); views.values.forEach { v -> setAgent(v, desktop, it) } },
+                clear = { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush(); context.deleteDatabase("webview.db"); message("Browsing data cleared") }
             )
-
-            IconButton(onClick = { navigate(address) }) {
-                Icon(Icons.Filled.TravelExplore, contentDescription = "Go")
+        } else {
+            Row(Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Search, null, tint = Color.LightGray, modifier = Modifier.size(18.dp))
+                Text("  Homepage", color = Color.LightGray, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                IconButton(onClick = { tabScreen = true }) { Icon(Icons.Default.Tab, null, tint = Color.LightGray) }
             }
-        }
-
-        if (loadingProgress in 1..99) {
-            androidx.compose.material3.LinearProgressIndicator(
-                progress = { loadingProgress / 100f },
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF176B55),
-                trackColor = Color(0xFFE1EAE5)
-            )
-        }
-
-        AndroidView(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            factory = { viewContext ->
-                WebView(viewContext).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.loadsImagesAutomatically = true
-                    settings.useWideViewPort = true
-                    settings.loadWithOverviewMode = true
-                    settings.javaScriptCanOpenWindowsAutomatically = false
-                    settings.setSupportMultipleWindows(false)
-
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: WebResourceRequest?
-                        ): Boolean = false
-
-                        override fun onPageStarted(
-                            view: WebView?,
-                            url: String?,
-                            favicon: Bitmap?
-                        ) {
-                            super.onPageStarted(view, url, favicon)
-                            url?.let { address = it }
-                            loadingProgress = 5
-                        }
-
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            url?.let { address = it }
-                            canGoBack = view?.canGoBack() == true
-                            canGoForward = view?.canGoForward() == true
-                            loadingProgress = 100
-                            pageTitle = view?.title ?: "SUDHA"
+            when {
+                tabScreen -> {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tabs (" + tabs.size + ")", color = Color.White, fontSize = 20.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { newTab() }) { Text("New tab") }
+                        IconButton(onClick = { tabScreen = false }) { Icon(Icons.Default.Close, null) }
+                    }
+                    LazyColumn {
+                        items(tabs.indices.toList()) { i ->
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp).background(surface, RoundedCornerShape(12.dp)).clickable { active = i; address = tabs[i].url; tabScreen = false }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(tabs[i].title, color = Color.White, maxLines = 1)
+                                    Text(tabs[i].url, color = Color.Gray, fontSize = 11.sp, maxLines = 1)
+                                }
+                                IconButton(onClick = {
+                                    views.remove(i)?.destroy()
+                                    tabs = tabs.filterIndexed { index, _ -> index != i }.ifEmpty { listOf(TabData()) }
+                                    active = active.coerceAtMost(tabs.lastIndex)
+                                }) { Icon(Icons.Default.Close, null, tint = Color.Gray) }
+                            }
                         }
                     }
-
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                            loadingProgress = newProgress
-                            canGoBack = view?.canGoBack() == true
-                            canGoForward = view?.canGoForward() == true
-                        }
-
-                        override fun onReceivedTitle(view: WebView?, title: String?) {
-                            pageTitle = title ?: "SUDHA"
-                        }
+                }
+                web == null -> {
+                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text("SUDHA", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
+                        Spacer(Modifier.height(24.dp))
+                        OutlinedTextField(address, { address = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(28.dp), placeholder = { Text("Search or enter URL", color = Color.Gray) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { navigate(address) }))
                     }
-
-                    browserView = this
-                    loadUrl(HOME_URL)
+                }
+                else -> AndroidView(factory = { web }, modifier = Modifier.weight(1f).fillMaxWidth())
+            }
+            if (progress in 1..99) LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth(), color = accent)
+            if (findBar) {
+                Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(findText, { findText = it; web?.findAllAsync(it) }, modifier = Modifier.weight(1f), singleLine = true, placeholder = { Text("Find in page") })
+                    IconButton(onClick = { web?.findNext(false) }) { Icon(Icons.Default.KeyboardArrowDown, null) }
+                    IconButton(onClick = { web?.findNext(true) }) { Icon(Icons.Default.KeyboardArrowUp, null) }
+                    IconButton(onClick = { web?.clearMatches(); findBar = false }) { Icon(Icons.Default.Close, null) }
                 }
             }
+            Row(Modifier.fillMaxWidth().height(58.dp).background(surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Action(Icons.Default.Search, "Find") { findBar = true }
+                Action(Icons.Default.BookmarkAdd, "Save") { saveBookmark() }
+                Action(Icons.Default.Layers, "Saved") { section = "Bookmarks" }
+                Action(Icons.Default.Translate, "Translate") { web?.url?.let { navigate("https://translate.google.com/translate?u=" + it) } }
+                Action(Icons.Default.Code, "Source") { web?.url?.let { navigate("view-source:" + it) } }
+                Action(Icons.Default.MoreHoriz, "Tools") { tools = true }
+            }
+            Row(Modifier.fillMaxWidth().height(48.dp).background(Color(0xFF151519)), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                NavAction(Icons.Default.ArrowBack, "Back", back) { web?.goBack() }
+                NavAction(Icons.Default.ArrowForward, "Forward", forward) { web?.goForward() }
+                NavAction(Icons.Default.Home, "Home", true) { views[active]?.loadUrl(HOME) ?: run { address = "" } }
+                NavAction(Icons.Default.Tab, tabs.size.toString(), true) { tabScreen = true }
+                NavAction(Icons.Default.Menu, "Menu", true) { tools = true }
+            }
+        }
+    }
+
+    if (tools) {
+        AlertDialog(
+            onDismissRequest = { tools = false }, containerColor = surface,
+            title = { Text("Tools", color = Color.White) },
+            text = {
+                Column {
+                    val entries = listOf(
+                        "Find in page" to { findBar = true },
+                        "Save page" to { web?.saveWebArchive(context.getExternalFilesDir(null)?.absolutePath + "/saved-page.mht", false); message("Save page requested") },
+                        "Saved pages" to { section = "Bookmarks" },
+                        "Translate" to { web?.url?.let { navigate("https://translate.google.com/translate?u=" + it) } },
+                        "View source" to { web?.url?.let { navigate("view-source:" + it) } },
+                        "Full screen" to { message("Full screen mode toggled") },
+                        "Show images" to { views.values.forEach { v -> v.settings.loadsImagesAutomatically = !v.settings.loadsImagesAutomatically } },
+                        "Resource filter" to { section = "Ad blocking" },
+                        "User-agent" to { section = "User-agent" },
+                        "Network log" to { section = "Advanced" },
+                        "Settings" to { section = "Settings" }
+                    )
+                    entries.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            row.forEach { entry -> TextButton(onClick = { tools = false; entry.second() }, modifier = Modifier.weight(1f)) { Text(entry.first, color = Color.White, fontSize = 12.sp) } }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { tools = false; section = "Settings" }) { Text("Settings") } },
+            dismissButton = { TextButton(onClick = { tools = false }) { Text("Close") } }
         )
+    }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color.White,
-            shadowElevation = 5.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { browserView?.loadUrl(HOME_URL) }) {
-                    Icon(Icons.Filled.Home, contentDescription = "Home")
+    LaunchedEffect(active, views.size) {
+        if (views[active] == null) {
+            val w = WebView(context)
+            w.settings.javaScriptEnabled = true
+            w.settings.domStorageEnabled = true
+            w.settings.loadsImagesAutomatically = true
+            w.settings.useWideViewPort = true
+            w.settings.loadWithOverviewMode = true
+            w.settings.javaScriptCanOpenWindowsAutomatically = false
+            w.settings.setSupportMultipleWindows(false)
+            setNight(w, night)
+            setAgent(w, desktop, ua)
+            w.webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) { progress = 5; if (url != null) address = url }
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    progress = 100
+                    back = view?.canGoBack() == true
+                    forward = view?.canGoForward() == true
+                    if (url != null) { address = url; val copy = tabs.toMutableList(); if (active < copy.size) { copy[active] = TabData(url, view?.title ?: url); tabs = copy } }
                 }
-                IconButton(
-                    onClick = { browserView?.goBack() },
-                    enabled = canGoBack
-                ) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+            }
+            w.webChromeClient = object : WebChromeClient() {
+                override fun onProgressChanged(view: WebView?, value: Int) { progress = value; back = view?.canGoBack() == true; forward = view?.canGoForward() == true }
+            }
+            w.setDownloadListener { url, agent, disposition, mime, _ ->
+                try {
+                    val name = URLUtil.guessFileName(url, disposition, mime)
+                    val req = DownloadManager.Request(Uri.parse(url)).setMimeType(mime).addRequestHeader("User-Agent", agent).setTitle(name).setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED).setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+                    (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
+                    message("Download started")
+                } catch (_: Exception) { message("Download failed") }
+            }
+            views[active] = w
+            val initial = tabs.getOrNull(active)?.url ?: HOME
+            if (initial != HOME) w.loadUrl(initial)
+        }
+    }
+}
+
+@Composable
+private fun Action(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, click: () -> Unit) {
+    Column(Modifier.clickable(onClick = click).padding(horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, tint = Color.LightGray, modifier = Modifier.size(19.dp))
+        Text(label, color = Color.LightGray, fontSize = 9.sp)
+    }
+}
+@Composable
+private fun NavAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, enabled: Boolean, click: () -> Unit) {
+    Column(Modifier.clickable(enabled = enabled, onClick = click).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, tint = if (enabled) Color.White else Color.DarkGray, modifier = Modifier.size(20.dp))
+        Text(label, color = Color.LightGray, fontSize = 9.sp)
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    section: String, onBack: () -> Unit,
+    night: Boolean, setNight: (Boolean) -> Unit,
+    ads: Boolean, setAds: (Boolean) -> Unit,
+    desktop: Boolean, setDesktop: (Boolean) -> Unit,
+    dnt: Boolean, setDnt: (Boolean) -> Unit,
+    webrtc: Boolean, setWebrtc: (Boolean) -> Unit,
+    ua: String, setUa: (String) -> Unit,
+    clear: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().background(bg)) {
+        Row(Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
+            Text(section, color = Color.White, fontSize = 18.sp)
+        }
+        LazyColumn {
+            if (section == "Settings") {
+                items(listOf("General", "Customization", "Privacy", "Advanced", "Scripts", "About")) { item ->
+                    SettingRow(item, "", { /* Section list is an index of the reference settings. */ })
                 }
-                IconButton(
-                    onClick = { browserView?.goForward() },
-                    enabled = canGoForward
-                ) {
-                    Icon(Icons.Filled.ArrowForward, contentDescription = "Forward")
+            } else if (section == "General") {
+                items(listOf("Sync", "User-agent: " + ua, "Clear data", "Ad blocking", "Site configuration", "Password manager", "Night mode", "Reader mode", "Toolbars settings", "Customize menu", "Customize context menu", "Language: System", "Homepage: Default", "Search settings", "AI settings", "Orientation: System", "Download manager", "External video player", "Clear data on exit", "Font", "Gestures", "Import/export bookmarks", "Import data", "Export data", "Restore tabs on startup", "Set as default browser")) { item ->
+                    SettingRow(item, "", {
+                        when {
+                            item == "Night mode" -> setNight(!night)
+                            item == "Ad blocking" -> setAds(!ads)
+                            item == "Clear data" -> clear()
+                            item.startsWith("User-agent") -> setUa(if (ua == "Default") "Desktop" else "Default")
+                        }
+                    })
                 }
-                IconButton(onClick = { browserView?.reload() }) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Reload")
-                }
-                IconButton(
-                    onClick = {
-                        Toast.makeText(
-                            context,
-                            "Tab manager is planned for the next development phase.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                ) {
-                    Icon(Icons.Filled.Tab, contentDescription = "Tabs")
-                }
+            } else if (section == "Privacy") {
+                item { SettingRow("Do not track", if (dnt) "On" else "Off", { setDnt(!dnt) }) }
+                item { SettingRow("Disable WebRTC", if (webrtc) "On" else "Off", { setWebrtc(!webrtc) }) }
+                item { SettingRow("Do not sell or share data", "Privacy preference", {}) }
+                item { SettingRow("Clear browsing data", "", clear) }
+            } else if (section == "Customization") {
+                item { SettingRow("Night mode", if (night) "On" else "Off", { setNight(!night) }) }
+                item { SettingRow("Toolbars settings", "", {}) }
+                item { SettingRow("Customize menu", "", {}) }
+                item { SettingRow("Customize context menu", "", {}) }
+                item { SettingRow("Font", "", {}) }
+            } else if (section == "Advanced") {
+                item { SettingRow("Desktop mode", if (desktop) "On" else "Off", { setDesktop(!desktop) }) }
+                item { SettingRow("User-agent", ua, { setUa(if (ua == "Default") "Desktop" else "Default") }) }
+                item { SettingRow("Download location", "Downloads", {}) }
+                item { SettingRow("Download manager", "Built-in", {}) }
+                item { SettingRow("Network log", "Not implemented yet", {}) }
+            } else if (section == "User-agent") {
+                items(listOf("Default", "Mobile", "Desktop")) { item -> SettingRow(item, if (ua == item) "Selected" else "", { setUa(item) }) }
+            } else if (section == "Ad blocking") {
+                item { SettingRow("Enable ad blocking", if (ads) "On" else "Off", { setAds(!ads) }) }
+                item { SettingRow("Filter lists", "Filter engine pending", {}) }
+            } else if (section == "Bookmarks") {
+                item { SettingRow("Saved bookmarks", "Saved locally on this device", {}) }
+            } else {
+                item { SettingRow("SUDHA Browser", "Version 0.2.0", {}) }
             }
         }
     }
+}
+
+@Composable
+private fun SettingRow(title: String, subtitle: String, click: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = click).padding(horizontal = 20.dp, vertical = 15.dp)) {
+        Text(title, color = Color(0xFFE8E8EA), fontSize = 14.sp)
+        if (subtitle.isNotBlank()) { Spacer(Modifier.height(4.dp)); Text(subtitle, color = Color.Gray, fontSize = 11.sp) }
+    }
+    HorizontalDivider(color = Color(0xFF29292F), thickness = 0.5.dp)
+}
+private fun setAgent(web: WebView, desktop: Boolean, mode: String) {
+    if (desktop || mode == "Desktop") web.settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+    else web.settings.userAgentString = null
+}
+private fun setNight(web: WebView, enabled: Boolean) {
+    if (android.os.Build.VERSION.SDK_INT >= 29) web.settings.forceDark = if (enabled) WebSettings.FORCE_DARK_ON else WebSettings.FORCE_DARK_OFF
 }
