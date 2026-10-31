@@ -14,7 +14,7 @@ The listing describes these feature areas. This roadmap is a target, not a claim
 - [x] Confirm a successful CI build and APK artifact upload (31 Oct 2026); real-device install test still pending
 
 ## Phase 1 — Core browsing
-- [ ] Multi-tab model, tab switcher, close/restore tabs
+- [x] Multi-tab model, tab switcher, close/restore tabs (local session persistence and active-tab restore; real-device QA pending)
 - [ ] Home page shortcuts and customizable homepage
 - [ ] Bookmarks, folders, import/export HTML
 - [ ] Browsing history and clear-data controls
