@@ -12,9 +12,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      HAS_SIGNING_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
-      VERSION_CODE: ${{ 200000 + github.run_number }}
-      VERSION_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -38,16 +35,14 @@ jobs:
       - name: Set stable version code
         run: echo "VERSION_CODE=$((200000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
-      - name: Require release signing secrets
-        if: env.HAS_SIGNING_KEY != 'true'
-        run: |
-          echo "Missing release signing secrets. Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
-          exit 1
-
       - name: Decode signing key
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          test -n "$KEYSTORE_B64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
           echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/sudha-release.jks"
 
       - name: Build signed release APK
