@@ -251,20 +251,19 @@ private fun BrowserScreen() {
                 }
                 web == null || tabs.getOrNull(active)?.url == HOME -> {
                     Box(Modifier.weight(1f).fillMaxWidth().background(Color.Black)) {
-                        Column(Modifier.fillMaxSize().padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Spacer(Modifier.height(0.dp))
+                        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Spacer(Modifier.weight(1f))
                             androidx.compose.foundation.Image(
                                 painter = painterResource(id = R.drawable.sudha_icon),
                                 contentDescription = "SUDHA Browser logo",
-                                modifier = Modifier.size(120.dp),
+                                modifier = Modifier.size(124.dp),
                                 contentScale = ContentScale.Fit
                             )
                             Spacer(Modifier.height(46.dp))
                             Row(
-                                Modifier.fillMaxWidth().height(64.dp)
+                                Modifier.fillMaxWidth().padding(horizontal = 0.dp).height(52.dp)
                                     .border(1.dp, Color(0xFF303033), RoundedCornerShape(40.dp))
-                                    .padding(horizontal = 20.dp),
+                                    .padding(horizontal = 18.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 BasicTextField(
@@ -277,7 +276,7 @@ private fun BrowserScreen() {
                                     keyboardActions = KeyboardActions(onGo = { navigate(address) }),
                                     decorationBox = { inner ->
                                         Box {
-                                            if (address.isBlank()) Text(" ", color = Color.Gray)
+                                            if (address.isBlank()) Text("Search or type URL", color = Color(0xFF77777B), fontSize = 15.sp)
                                             inner()
                                         }
                                     }
@@ -325,36 +324,40 @@ private fun BrowserScreen() {
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
                 Column(
-                    Modifier.fillMaxWidth().padding(bottom = 2.dp)
+                    Modifier.fillMaxWidth()
                         .background(Color(0xFF1D1D1F), RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                         .border(1.dp, Color(0xFF303033), RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                        .padding(horizontal = 14.dp, vertical = 22.dp)
+                        .padding(start = 10.dp, end = 10.dp, top = 18.dp, bottom = 8.dp)
                 ) {
                     val entries = listOf(
                         Triple(Icons.Default.NightsStay, "Night mode", 0),
                         Triple(Icons.Default.StarBorder, "Bookmarks", 1),
                         Triple(Icons.Default.History, "History", 2),
                         Triple(Icons.Default.FileDownload, "Downloads", 3),
-                        Triple(Icons.Default.VisibilityOff, "Incognito mode", 4),
+                        Triple(Icons.Default.VisibilityOff, "Incognito\nmode", 4),
                         Triple(Icons.Default.Share, "Share", 5),
-                        Triple(Icons.Default.Star, "Add bookmark", 6),
+                        Triple(Icons.Default.StarOutline, "Add\nbookmark", 6),
                         Triple(Icons.Default.DesktopWindows, "Desktop site", 7),
                         Triple(Icons.Default.Build, "Tools", 8),
                         Triple(Icons.Default.Settings, "Settings", 9)
                     )
-                    entries.chunked(5).forEach { rowItems ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    entries.chunked(5).forEachIndexed { rowIndex, rowItems ->
+                        Row(
+                            Modifier.fillMaxWidth().height(88.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             rowItems.forEach { item ->
                                 Column(
-                                    Modifier.weight(1f).height(94.dp).clickable {
+                                    Modifier.weight(1f).fillMaxHeight().clickable {
                                         tools = false
                                         when (item.third) {
                                             0 -> { night = !night; pref("night", night); views.values.forEach { v -> setNight(v, night) } }
                                             1 -> section = "Bookmarks"
                                             2 -> section = "History"
                                             3 -> try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setType("vnd.android.cursor.dir/download").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { message("Downloads unavailable") }
-                                            4 -> message("Incognito mode is not available in this build")
-                                            5 -> try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, web?.url ?: "https://").let { android.content.Intent.createChooser(it, "Share page") }) } catch (_: Exception) { message("Share unavailable") }
+                                            4 -> message("Incognito mode is not implemented yet")
+                                            5 -> try { context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, web?.url ?: ""), "Share page")) } catch (_: Exception) { message("Share unavailable") }
                                             6 -> saveBookmark()
                                             7 -> { desktop = !desktop; pref("desktop", desktop); views.values.forEach { v -> setAgent(v, desktop, ua) } }
                                             8 -> { findBar = true }
@@ -364,18 +367,30 @@ private fun BrowserScreen() {
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(item.first, null, tint = if (item.third == 0 && night) Color(0xFF7889D8) else Color(0xFFAAAAAD), modifier = Modifier.size(35.dp))
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(item.second, color = if (item.third == 0 && night) Color(0xFF7889D8) else Color(0xFFB7B7BA), fontSize = 11.sp, lineHeight = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
+                                    Icon(item.first, null, tint = if (item.third == 0 && night) Color(0xFF7889D8) else Color(0xFFAAAAAD), modifier = Modifier.size(34.dp))
+                                    Spacer(Modifier.height(7.dp))
+                                    Text(item.second, color = if (item.third == 0 && night) Color(0xFF7889D8) else Color(0xFFB7B7BA), fontSize = 10.sp, lineHeight = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
+                                }
+                            }
+                        }
+                        if (rowIndex == 0) {
+                            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                                repeat(3) { dot ->
+                                    Box(Modifier.padding(horizontal = 2.dp).size(if (dot == 0) 5.dp else 4.dp).background(Color(0xFF55555A), RoundedCornerShape(50)))
                                 }
                             }
                         }
                     }
-                    Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { tools = false; (context as? ComponentActivity)?.finish() }) { Icon(Icons.Default.PowerSettingsNew, null, tint = Color(0xFFAAAAAD), modifier = Modifier.size(29.dp)) }
-                        Spacer(Modifier.width(30.dp))
-                        IconButton(onClick = { tools = false }) { Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFFAAAAAD), modifier = Modifier.size(32.dp)) }
+                        IconButton(onClick = { tools = false; (context as? ComponentActivity)?.finish() }) {
+                            Icon(Icons.Default.PowerSettingsNew, null, tint = Color(0xFFAAAAAD), modifier = Modifier.size(29.dp))
+                        }
+                        Spacer(Modifier.width(24.dp))
+                        IconButton(onClick = { tools = false }) {
+                            Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFFAAAAAD), modifier = Modifier.size(32.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
                     }
                 }
             }
