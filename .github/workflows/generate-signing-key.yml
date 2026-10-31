@@ -1,0 +1,41 @@
+name: Generate SUDHA Signing Key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate permanent key
+        run: |
+          set -e
+          mkdir -p signing-output
+          PASS="$(openssl rand -hex 32)"
+
+          keytool -genkeypair -noprompt \
+            -keystore signing-output/sudha-release.jks \
+            -storetype PKCS12 \
+            -alias sudha-release \
+            -keyalg RSA \
+            -keysize 4096 \
+            -validity 10000 \
+            -dname "CN=SUDHA Browser, OU=Android, O=SUDHA, C=IN" \
+            -storepass "$PASS" \
+            -keypass "$PASS"
+
+          printf '%s' "$PASS" > signing-output/ANDROID_KEYSTORE_PASSWORD.txt
+          printf '%s' "$PASS" > signing-output/ANDROID_KEY_PASSWORD.txt
+          printf '%s' 'sudha-release' > signing-output/ANDROID_KEY_ALIAS.txt
+          base64 -w 0 signing-output/sudha-release.jks > signing-output/ANDROID_KEYSTORE_BASE64.txt
+
+      - name: Upload key package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SUDHA-SIGNING-KEY
+          path: signing-output/
+          retention-days: 1
+          
