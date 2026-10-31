@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import java.net.URLEncoder
 
-private const val HOME = "https://www.google.com"
+private const val HOME = "about:blank"
 private val bg = Color(0xFF101014)
 private val surface = Color(0xFF1D1D22)
 private val accent = Color(0xFF8798FF)
@@ -51,7 +51,7 @@ private fun restoreTabs(prefs: android.content.SharedPreferences): List<TabData>
         val saved = org.json.JSONArray(prefs.getString("open_tabs", "[]") ?: "[]")
         val restored = (0 until saved.length()).mapNotNull { index ->
             val item = saved.optJSONObject(index) ?: return@mapNotNull null
-            TabData(item.optString("url", HOME).ifBlank { HOME }, item.optString("title", "New tab"))
+            TabData(item.optString("url", HOME).ifBlank { HOME }.let { if (it == "https://www.google.com" || it == "http://www.google.com") HOME else it }, item.optString("title", "New tab"))
         }
         restored.ifEmpty { listOf(TabData()) }.take(30)
     } catch (_: Exception) {
@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(16,16,20)
         window.navigationBarColor = android.graphics.Color.rgb(16,16,20)
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = 0
         setContent { MaterialTheme(colorScheme = darkColorScheme(primary = accent, background = bg, surface = surface)) { BrowserScreen() } }
         checkForAppUpdate()
     }
@@ -185,7 +187,7 @@ private fun BrowserScreen() {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(bg)) {
+    Column(Modifier.fillMaxSize().background(bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
         if (section != null) {
             SettingsScreen(
                 section = section!!,
