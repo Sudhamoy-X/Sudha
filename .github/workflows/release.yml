@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,6 +11,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      HAS_SIGNING_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -32,25 +35,26 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Decode signing key
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      - name: Require release signing secrets
+        if: env.HAS_SIGNING_KEY != 'true'
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/sudha-release.jks"
+          echo "Missing release signing secrets. Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
+          exit 1
+
+      - name: Decode signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/sudha-release.jks"
 
       - name: Build signed release APK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/sudha-release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon assembleRelease
-
-      - name: Stop if signing secrets are missing
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
         run: |
-          echo "Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD repository secrets."
-          exit 1
+          VERSION_NAME="${GITHUB_REF_NAME#v}" gradle --no-daemon -PVERSION_CODE="$VERSION_CODE" -PVERSION_NAME="${GITHUB_REF_NAME#v}" assembleRelease
 
       - name: Prepare APK and checksum
         run: |
