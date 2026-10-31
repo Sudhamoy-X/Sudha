@@ -1,4 +1,4 @@
-name: SUDHA Android APK
+name: SUDHA Debug APK and Auto Update
 
 on:
   push:
@@ -8,12 +8,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build signed debug APK
     runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ 100000 + github.run_number }}
+      VERSION_NAME: 0.1.${{ github.run_number }}
+      HAS_SIGNING_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -34,13 +38,53 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Require permanent signing key
+        if: env.HAS_SIGNING_KEY != 'true'
+        run: |
+          echo "Missing permanent signing secrets. Debug auto-update requires the same keystore as stable releases."
+          exit 1
 
-      - name: Upload APK
+      - name: Decode permanent signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/sudha-release.jks"
+
+      - name: Build signed debug APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/sudha-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon -PVERSION_CODE="$VERSION_CODE" -PVERSION_NAME="$VERSION_NAME" assembleDebug
+
+      - name: Prepare APK and checksum
+        run: |
+          mkdir -p release
+          cp app/build/outputs/apk/debug/app-debug.apk release/SUDHA-debug.apk
+          cd release
+          sha256sum SUDHA-debug.apk > SUDHA-debug.apk.sha256
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: SUDHA-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          path: release/*
           retention-days: 14
+
+      - name: Move debug-latest tag to this commit
+        if: github.event_name != 'pull_request'
+        run: |
+          git tag -f debug-latest "$GITHUB_SHA"
+          git push origin refs/tags/debug-latest --force
+
+      - name: Publish or update Debug channel release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-latest
+          name: SUDHA Debug Latest
+          prerelease: true
+          make_latest: false
+          files: |
+            release/SUDHA-debug.apk
+            release/SUDHA-debug.apk.sha256
